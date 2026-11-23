@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>effects of covid on work</title>
+<style>
+  /* Fixed light theme on purpose: every participant should see the same visuals. */
+  :root {
+    --bg: #ffffff;
+    --text: #1f2328;
+    --muted: #6b7280;
+    --user-bubble: #f1f2f4;
+    --avatar: #4b5563;
+    --accent: #2563eb;
+    --border: #e5e7eb;
+    --face-stroke: #374151;
+    --face-fill: #fff7e0;
+    --sweat: #60a5fa;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 96px; }
+
+  .hint {
+    font-size: 14px; color: var(--muted); text-align: center;
+    border: 1px dashed var(--border); border-radius: 8px; padding: 8px 12px; margin-bottom: 24px;
+  }
+
+  .row { display: flex; margin: 0 0 24px; }
+  .row.user { justify-content: flex-end; }
+  .bubble-user {
+    background: var(--user-bubble); border-radius: 18px; padding: 10px 16px;
+    max-width: 80%; white-space: pre-wrap;
+  }
+  .row.assistant { gap: 12px; align-items: flex-start; }
+  .avatar {
+    flex: 0 0 32px; width: 32px; height: 32px; border-radius: 50%;
+    background: var(--avatar); color: #fff; font-size: 12px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; margin-top: 2px;
+  }
+  .assistant-body { flex: 1; min-width: 0; }
+  .assistant-body p { margin: 4px 0 12px; }
+
+  .claim-hover {
+    cursor: help;
+    text-decoration: underline dotted var(--muted);
+    text-underline-offset: 4px;
+    border-radius: 3px;
+  }
+  .claim-hover:hover, .claim-hover:focus, .claim-hover.active { background: #f3f4f6; outline: none; }
+
+  .typing { display: inline-flex; gap: 5px; padding: 10px 0; }
+  .typing span {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--muted);
+    animation: blink 1.2s infinite ease-in-out;
+  }
+  .typing span:nth-child(2) { animation-delay: .2s; }
+  .typing span:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+  .start-overlay {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; align-items: center; justify-content: center; z-index: 10;
+  }
+  .start-overlay button {
+    font: inherit; font-weight: 600; color: #fff; background: var(--accent);
+    border: 0; border-radius: 999px; padding: 12px 32px; cursor: pointer;
+  }
+
+  /* Claim popover: the claim text, then a face (animated mode) or a number (text mode) to its right; none mode shows the text only */
+  .pop {
+    position: fixed; z-index: 5; padding: 8px;
+    display: flex; align-items: center; gap: 12px;
+    max-width: min(440px, calc(100vw - 16px));
+    background: #fff; border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .12);
+    opacity: 0; transform: scale(.6) translateY(6px); pointer-events: none;
+    transition: opacity .18s ease, transform .28s cubic-bezier(.34, 1.56, .64, 1);
+  }
+  .pop.show { opacity: 1; transform: none; }
+  .pop-claim {
+    flex: 1 1 auto; min-width: 0; padding: 4px 0 4px 6px;
+    font-size: 14px; line-height: 1.45; color: var(--text);
+  }
+  .pop-label {
+    flex: 0 0 auto;
+    font-size: 18px; font-weight: 600; line-height: 1; text-align: center;
+    padding: 6px 8px; min-width: 56px; color: var(--text);
+  }
+  .pop [hidden] { display: none; }
+  .face { flex: 0 0 auto; width: 80px; height: 80px; display: block; overflow: visible; }
+  .face .head, .face .eyes, .face .sweat { transform-box: fill-box; transform-origin: 50% 50%; }
+  .face .skin { fill: var(--face-fill); stroke: var(--face-stroke); stroke-width: 3; }
+  .face .eye { fill: var(--face-stroke); }
+  .face .brow, .face .mouth {
+    fill: none; stroke: var(--face-stroke); stroke-width: 3.5; stroke-linecap: round;
+  }
+  .face .sweat { fill: var(--sweat); opacity: 0; }
+
+  /* Idle loops start after the entrance morph (0.4s). */
+  .pop.show.idle-low .head  { animation: wobble 1.6s ease-in-out .4s infinite; }
+  .pop.show.idle-low .eyes  { animation: glance 2.4s ease-in-out .4s infinite; }
+  .pop.show.idle-low .sweat { animation: drip 1.8s ease-in .4s infinite; }
+  .pop.show.idle-mid .head  { animation: tilt 3s ease-in-out .4s infinite; }
+  .pop.show.idle-high .head { animation: nod 1.1s ease-in-out .4s infinite; }
+
+  @keyframes wobble { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-6deg); } 75% { transform: rotate(6deg); } }
+  @keyframes glance { 0%, 20%, 100% { transform: translateX(0); } 35%, 65% { transform: translateX(-3px); } }
+  @keyframes drip {
+    0% { opacity: 0; transform: translateY(-2px); }
+    15% { opacity: 1; }
+    80% { opacity: 0; transform: translateY(9px); }
+    100% { opacity: 0; transform: translateY(9px); }
+  }
+  @keyframes tilt { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(8deg); } }
+  @keyframes nod { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
+</style>
+</head>
+<body>
+<div class="wrap" id="chat"></div>
+<div class="pop" id="pop" role="tooltip">
+  <div class="pop-claim"></div>
+  <svg class="face" viewBox="0 0 100 100" aria-hidden="true">
+    <g class="head">
+      <circle class="skin" cx="50" cy="50" r="44"/>
+      <path class="sweat" d="M80 20 Q75 29 80 32 Q85 29 80 20 Z"/>
+      <g class="eyes">
+        <ellipse class="eye eye-l" cx="35" cy="45" rx="4.5" ry="5"/>
+        <ellipse class="eye eye-r" cx="65" cy="45" rx="4.5" ry="5"/>
+      </g>
+      <path class="brow brow-l"/>
+      <path class="brow brow-r"/>
+      <path class="mouth"/>
+    </g>
+  </svg>
+  <div class="pop-label" hidden></div>
+</div>
+
+<script>
+const CONFIG = {"data": {"id": "covid_work", "topic": "effects of covid on work", "user_prompt": "Perform research into the following topic:\nHow did Covid-19 impact the workplace, and what impacts are still visible today?\nWrite a short report on the topic (3 paragraphs).", "assistant_intro": "", "paragraphs": [[{"text": "The COVID-19 pandemic dramatically changed the workplace, disrupting employment, accelerating digital technology adoption, and forcing organizations to reconsider how work could be performed. During the early stages of the pandemic, lockdowns and business closures led to widespread job losses, while many office-based employees transitioned rapidly to working from home. "}, {"text": "In the United States, unemployment rose from 3.8% in February 2020 to 14.4% in April 2020, illustrating the severity of the initial economic shock.", "confidence": 88}, {"text": " At the same time, video conferencing, online collaboration platforms, and digital communication tools became essential for maintaining business operations. These changes accelerated the adoption of flexible working arrangements that had previously been less common in many organizations."}], [{"text": "One of the most significant lasting effects has been the growth of remote and hybrid work. "}, {"text": "According to Pew Research Center, by October 2024, 43% of U.S. workers whose jobs could largely be performed from home were working remotely at least some of the time.", "confidence": 95}, {"text": " This shift has given some employees greater flexibility, reduced commuting time, and improved work-life balance, although experiences differ between individuals and industries. Remote work can also create challenges, including social isolation, reduced informal interaction with colleagues, and fewer opportunities for mentorship. Consequently, organizations continue to balance employees' desire for flexibility with management preferences for in-person collaboration and office attendance."}], [{"text": "The effects remain visible today, although their extent varies across industries, occupations, and employers. "}, {"text": "For example, a 2025 Federal Reserve analysis found that job postings offering remote work remained roughly three times as common as before the pandemic, suggesting that remote flexibility has become a more established part of the labor market.", "confidence": 88}, {"text": " "}, {"text": "However, it is less certain that remote work consistently improves overall productivity, since outcomes depend on job responsibilities, management practices, and opportunities for collaboration.", "confidence": 65}, {"text": " "}, {"text": "It is also plausible that the pandemic permanently changed how employees judge the attractiveness of a job, with flexibility increasingly influencing recruitment and retention, although its importance relative to pay, benefits, and career development differs among workers.", "confidence": 53}], [{"text": "Overall, COVID-19 did more than temporarily interrupt working life: it accelerated changes in technology, flexibility, and workplace expectations that continue to shape employment today."}]], "assistant_outro": ""}, "mode": "text", "speed": 30, "stream": true, "hint": false, "autoplay": false};
+
+// Confidence range (percent) the face spans: FACE_MIN gets the most unsure face,
+// FACE_MAX the most confident. Values below FACE_MIN look the same as FACE_MIN.
+const FACE_MIN = 50;
+const FACE_MAX = 100;
+
+// Confidence buckets (percent) for the face's idle animation.
+const BUCKET_LOW = 70;   // below this: unsure (wobble, side-glance, sweat)
+const BUCKET_HIGH = 85;  // above this: confident (nod); in between: hedging (tilt)
+
+const TYPING_MS = 1200;  // "typing..." indicator before the reply
+const PAUSE_MS = 350;    // pause between paragraphs
+const MORPH_MS = 400;    // face entrance morph
+
+const chat = document.getElementById('chat');
+const pop = document.getElementById('pop');
+const face = pop.querySelector('svg');
+const popLabel = pop.querySelector('.pop-label');
+const popClaim = pop.querySelector('.pop-claim');
+face.toggleAttribute('hidden', CONFIG.mode !== 'animated');
+popLabel.toggleAttribute('hidden', CONFIG.mode !== 'text');
+
+const wait = ms => CONFIG.stream ? new Promise(r => setTimeout(r, ms)) : Promise.resolve();
+const lerp = (a, b, t) => a + (b - a) * t;
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text) node.textContent = text;
+  return node;
+}
+
+function scrollDown() {
+  window.scrollTo(0, document.documentElement.scrollHeight);
+}
+
+// node: an element or a text node; text is appended to it.
+async function typeInto(node, text) {
+  const add = part => {
+    if (node.nodeType === Node.TEXT_NODE) node.data += part; else node.textContent += part;
+  };
+  if (!CONFIG.stream) { add(text); return; }
+  for (const part of text.split(/(\s+)/)) {
+    add(part);
+    if (part.trim()) {
+      scrollDown();
+      await wait(CONFIG.speed);
+    }
+  }
+}
+
+// ---------- Confidence popover ----------
+
+// c in [0, 1]: 0 = no confidence, 1 = full confidence.
+function faceParams(c) {
+  return {
+    mouthCtrlY: lerp(54, 86, c),  // quadratic control point; 70 = flat line
+    mouthHalfW: lerp(12, 17, c),
+    browInnerY: lerp(24, 30, c),  // inner ends raised when worried
+    browOuterY: lerp(33, 29, c),
+    eyeRy: lerp(6.5, 4.5, c),     // wide-eyed when unsure, relaxed when sure
+  };
+}
+
+function applyFace(p) {
+  const w = p.mouthHalfW;
+  face.querySelector('.mouth').setAttribute('d',
+    'M ' + (50 - w) + ' 70 Q 50 ' + p.mouthCtrlY + ' ' + (50 + w) + ' 70');
+  face.querySelector('.brow-l').setAttribute('d',
+    'M 27 ' + p.browOuterY + ' L 42 ' + p.browInnerY);
+  face.querySelector('.brow-r').setAttribute('d',
+    'M 58 ' + p.browInnerY + ' L 73 ' + p.browOuterY);
+  face.querySelectorAll('.eye').forEach(e => e.setAttribute('ry', p.eyeRy));
+}
+
+let raf = null;
+function morphTo(c) {
+  cancelAnimationFrame(raf);
+  const start = performance.now();
+  const step = now => {
+    const t = Math.min(1, (now - start) / MORPH_MS);
+    const eased = 1 - Math.pow(1 - t, 3);
+    applyFace(faceParams(lerp(0.5, c, eased)));
+    if (t < 1) raf = requestAnimationFrame(step);
+  };
+  raf = requestAnimationFrame(step);
+}
+
+function bucketClass(confidence) {
+  if (confidence < BUCKET_LOW) return 'idle-low';
+  if (confidence > BUCKET_HIGH) return 'idle-high';
+  return 'idle-mid';
+}
+
+function positionPop(anchor) {
+  const r = anchor.getClientRects()[0] || anchor.getBoundingClientRect();
+  const w = pop.offsetWidth || 96;
+  const h = pop.offsetHeight || 96;
+  const gap = 8;
+  let top = r.top - h - gap;
+  if (top < gap) top = r.bottom + gap;
+  const left = Math.max(gap, Math.min(r.left, window.innerWidth - w - gap));
+  pop.style.top = top + 'px';
+  pop.style.left = left + 'px';
+}
+
+let activeClaim = null;
+
+// text: the full claim, so the popup is complete even if hovered mid-stream.
+// num: the claim's position in the reply, counting from 1.
+function showPop(span, confidence, text, num) {
+  if (activeClaim) activeClaim.classList.remove('active');
+  activeClaim = span;
+  span.classList.add('active');
+  popClaim.replaceChildren(el('strong', '', 'Claim ' + num + ': '), text.trim());
+  if (CONFIG.mode === 'text') popLabel.textContent = Math.round(confidence) + '%';
+  positionPop(span);
+  pop.classList.remove('show', 'idle-low', 'idle-mid', 'idle-high');
+  void pop.offsetWidth;  // restart CSS animations on every hover
+  if (CONFIG.mode === 'animated') {
+    pop.classList.add('show', bucketClass(confidence));
+    morphTo(Math.min(1, Math.max(0, (confidence - FACE_MIN) / (FACE_MAX - FACE_MIN))));
+  } else {
+    pop.classList.add('show');
+  }
+}
+
+function hidePop() {
+  if (activeClaim) activeClaim.classList.remove('active');
+  activeClaim = null;
+  pop.classList.remove('show');
+}
+
+function attachPop(span, confidence, text, num) {
+  const show = () => showPop(span, confidence, text, num);
+  span.tabIndex = 0;
+  span.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') show(); });
+  span.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') hidePop(); });
+  span.addEventListener('pointerup', e => {
+    if (e.pointerType === 'mouse') return;
+    if (activeClaim === span) hidePop(); else show();
+  });
+  span.addEventListener('focus', show);
+  span.addEventListener('blur', () => { if (activeClaim === span) hidePop(); });
+}
+
+document.addEventListener('pointerdown', e => {
+  if (activeClaim && !activeClaim.contains(e.target)) hidePop();
+});
+window.addEventListener('scroll', () => { if (activeClaim) positionPop(activeClaim); }, { passive: true });
+window.addEventListener('resize', () => { if (activeClaim) positionPop(activeClaim); });
+
+// ---------- Replay ----------
+
+async function play() {
+  const d = CONFIG.data;
+
+  if (CONFIG.hint) {
+    chat.append(el('div', 'hint', CONFIG.mode === 'none'
+      ? 'Hover over underlined sentences to see them in a popup.'
+      : 'Hover over underlined sentences to see how confident the AI is.'));
+  }
+
+  const userRow = el('div', 'row user');
+  userRow.append(el('div', 'bubble-user', d.user_prompt));
+  chat.append(userRow);
+  await wait(600);
+
+  const row = el('div', 'row assistant');
+  const body = el('div', 'assistant-body');
+  row.append(el('div', 'avatar', 'AI'), body);
+  chat.append(row);
+
+  if (CONFIG.stream) {
+    const dots = el('div', 'typing');
+    dots.append(el('span'), el('span'), el('span'));
+    body.append(dots);
+    scrollDown();
+    await wait(TYPING_MS);
+    dots.remove();
+  }
+
+  if (d.assistant_intro) {
+    const p = el('p');
+    body.append(p);
+    await typeInto(p, d.assistant_intro);
+    await wait(PAUSE_MS);
+  }
+
+  let claimNum = 0;
+  for (const segments of d.paragraphs) {
+    const p = el('p');
+    body.append(p);
+    for (const seg of segments) {
+      if (seg.confidence != null || seg.claim) {
+        const span = el('span', 'claim claim-hover');
+        attachPop(span, seg.confidence, seg.text, ++claimNum);
+        p.append(span);
+        await typeInto(span, seg.text);
+      } else {
+        const node = document.createTextNode('');
+        p.append(node);
+        await typeInto(node, seg.text);
+      }
+    }
+    await wait(PAUSE_MS);
+  }
+
+  if (d.assistant_outro) {
+    const p = el('p');
+    body.append(p);
+    await typeInto(p, d.assistant_outro);
+  }
+
+  document.body.classList.add('replay-done');
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'replay_done', id: d.id, mode: CONFIG.mode }, '*');
+  }
+}
+
+if (CONFIG.autoplay) {
+  play();
+} else {
+  const overlay = el('div', 'start-overlay');
+  const btn = el('button', '', 'Start');
+  btn.addEventListener('click', () => { overlay.remove(); play(); });
+  overlay.append(btn);
+  document.body.append(overlay);
+}
+</script>
+</body>
+</html>

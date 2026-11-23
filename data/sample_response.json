@@ -1,0 +1,12 @@
+{
+  "id": "coffee_health",
+  "topic": "Health effects of coffee",
+  "user_prompt": "Research the health effects of drinking coffee and write me a short 3-paragraph report.",
+  "assistant_intro": "",
+  "paragraphs": [
+    "Coffee is one of the most widely studied drinks in nutrition research, and the overall picture is broadly reassuring. [[Moderate coffee consumption (around 3–4 cups a day) is associated with lower all-cause mortality in large observational studies.|90]] Most of this evidence comes from long-term cohort studies rather than randomized trials, so it shows association rather than cause.",
+    "Some effects are short-term and depend on how used to caffeine a person is. [[Caffeine temporarily raises blood pressure, especially in people who don't drink coffee regularly.|78]] Over the longer term, the research also points to metabolic benefits. [[Regular coffee drinkers have a reduced risk of developing type 2 diabetes.|60]]",
+    "Other common beliefs about coffee are less well supported. [[Drinking coffee in the afternoon has no measurable effect on sleep quality for most adults.|35]] [[Dark roast coffee contains significantly more caffeine than light roast coffee.|15]] Individual tolerance varies a lot, so it is worth paying attention to how coffee affects you personally."
+  ],
+  "assistant_outro": ""
+}

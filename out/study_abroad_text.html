@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>studying abroad and education</title>
+<style>
+  /* Fixed light theme on purpose: every participant should see the same visuals. */
+  :root {
+    --bg: #ffffff;
+    --text: #1f2328;
+    --muted: #6b7280;
+    --user-bubble: #f1f2f4;
+    --avatar: #4b5563;
+    --accent: #2563eb;
+    --border: #e5e7eb;
+    --face-stroke: #374151;
+    --face-fill: #fff7e0;
+    --sweat: #60a5fa;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 96px; }
+
+  .hint {
+    font-size: 14px; color: var(--muted); text-align: center;
+    border: 1px dashed var(--border); border-radius: 8px; padding: 8px 12px; margin-bottom: 24px;
+  }
+
+  .row { display: flex; margin: 0 0 24px; }
+  .row.user { justify-content: flex-end; }
+  .bubble-user {
+    background: var(--user-bubble); border-radius: 18px; padding: 10px 16px;
+    max-width: 80%; white-space: pre-wrap;
+  }
+  .row.assistant { gap: 12px; align-items: flex-start; }
+  .avatar {
+    flex: 0 0 32px; width: 32px; height: 32px; border-radius: 50%;
+    background: var(--avatar); color: #fff; font-size: 12px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; margin-top: 2px;
+  }
+  .assistant-body { flex: 1; min-width: 0; }
+  .assistant-body p { margin: 4px 0 12px; }
+
+  .claim-hover {
+    cursor: help;
+    text-decoration: underline dotted var(--muted);
+    text-underline-offset: 4px;
+    border-radius: 3px;
+  }
+  .claim-hover:hover, .claim-hover:focus, .claim-hover.active { background: #f3f4f6; outline: none; }
+
+  .typing { display: inline-flex; gap: 5px; padding: 10px 0; }
+  .typing span {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--muted);
+    animation: blink 1.2s infinite ease-in-out;
+  }
+  .typing span:nth-child(2) { animation-delay: .2s; }
+  .typing span:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+  .start-overlay {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; align-items: center; justify-content: center; z-index: 10;
+  }
+  .start-overlay button {
+    font: inherit; font-weight: 600; color: #fff; background: var(--accent);
+    border: 0; border-radius: 999px; padding: 12px 32px; cursor: pointer;
+  }
+
+  /* Claim popover: the claim text, then a face (animated mode) or a number (text mode) to its right; none mode shows the text only */
+  .pop {
+    position: fixed; z-index: 5; padding: 8px;
+    display: flex; align-items: center; gap: 12px;
+    max-width: min(440px, calc(100vw - 16px));
+    background: #fff; border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .12);
+    opacity: 0; transform: scale(.6) translateY(6px); pointer-events: none;
+    transition: opacity .18s ease, transform .28s cubic-bezier(.34, 1.56, .64, 1);
+  }
+  .pop.show { opacity: 1; transform: none; }
+  .pop-claim {
+    flex: 1 1 auto; min-width: 0; padding: 4px 0 4px 6px;
+    font-size: 14px; line-height: 1.45; color: var(--text);
+  }
+  .pop-label {
+    flex: 0 0 auto;
+    font-size: 18px; font-weight: 600; line-height: 1; text-align: center;
+    padding: 6px 8px; min-width: 56px; color: var(--text);
+  }
+  .pop [hidden] { display: none; }
+  .face { flex: 0 0 auto; width: 80px; height: 80px; display: block; overflow: visible; }
+  .face .head, .face .eyes, .face .sweat { transform-box: fill-box; transform-origin: 50% 50%; }
+  .face .skin { fill: var(--face-fill); stroke: var(--face-stroke); stroke-width: 3; }
+  .face .eye { fill: var(--face-stroke); }
+  .face .brow, .face .mouth {
+    fill: none; stroke: var(--face-stroke); stroke-width: 3.5; stroke-linecap: round;
+  }
+  .face .sweat { fill: var(--sweat); opacity: 0; }
+
+  /* Idle loops start after the entrance morph (0.4s). */
+  .pop.show.idle-low .head  { animation: wobble 1.6s ease-in-out .4s infinite; }
+  .pop.show.idle-low .eyes  { animation: glance 2.4s ease-in-out .4s infinite; }
+  .pop.show.idle-low .sweat { animation: drip 1.8s ease-in .4s infinite; }
+  .pop.show.idle-mid .head  { animation: tilt 3s ease-in-out .4s infinite; }
+  .pop.show.idle-high .head { animation: nod 1.1s ease-in-out .4s infinite; }
+
+  @keyframes wobble { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-6deg); } 75% { transform: rotate(6deg); } }
+  @keyframes glance { 0%, 20%, 100% { transform: translateX(0); } 35%, 65% { transform: translateX(-3px); } }
+  @keyframes drip {
+    0% { opacity: 0; transform: translateY(-2px); }
+    15% { opacity: 1; }
+    80% { opacity: 0; transform: translateY(9px); }
+    100% { opacity: 0; transform: translateY(9px); }
+  }
+  @keyframes tilt { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(8deg); } }
+  @keyframes nod { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
+</style>
+</head>
+<body>
+<div class="wrap" id="chat"></div>
+<div class="pop" id="pop" role="tooltip">
+  <div class="pop-claim"></div>
+  <svg class="face" viewBox="0 0 100 100" aria-hidden="true">
+    <g class="head">
+      <circle class="skin" cx="50" cy="50" r="44"/>
+      <path class="sweat" d="M80 20 Q75 29 80 32 Q85 29 80 20 Z"/>
+      <g class="eyes">
+        <ellipse class="eye eye-l" cx="35" cy="45" rx="4.5" ry="5"/>
+        <ellipse class="eye eye-r" cx="65" cy="45" rx="4.5" ry="5"/>
+      </g>
+      <path class="brow brow-l"/>
+      <path class="brow brow-r"/>
+      <path class="mouth"/>
+    </g>
+  </svg>
+  <div class="pop-label" hidden></div>
+</div>
+
+<script>
+const CONFIG = {"data": {"id": "study_abroad", "topic": "studying abroad and education", "user_prompt": "Perform research into the following topic:\nWhat are the impacts of studying abroad on education? How is studying abroad changing today, and what are some trends for the future?\nWrite a short report on the topic (3 paragraphs).", "assistant_intro": "", "paragraphs": [[{"text": "Studying abroad has become an important part of higher education, giving students opportunities to experience different educational systems, learn languages, and engage with cultures beyond their own. Research suggests that these experiences can improve academic learning, intercultural understanding, and personal development. "}, {"text": "A meta-analysis of 72 studies involving 7,820 participants found positive learning outcomes across cognitive, multicultural-attitude, and intercultural-adaptation measures, supporting the claim that studying abroad can enhance students' academic and intercultural learning outcomes.", "confidence": 94}, {"text": " However, these benefits depend on factors such as program design, opportunities to interact with local communities, and the extent to which students reflect on their experiences. "}, {"text": "Students who study abroad are likely to develop stronger independence and problem-solving skills than they would through classroom learning alone,", "confidence": 78}, {"text": " although the extent of these improvements varies across individuals and programs."}], [{"text": "Today, studying abroad is changing in response to economic pressures, shifting government policies, and students\u2019 evolving needs. Short-term programs, summer courses, internships, and other flexible opportunities have become important alternatives to traditional semester- or year-long exchanges. Research reviews also highlight growing interest in designing programs that develop practical intercultural skills through structured reflection, mentorship, and immersion. At the same time, international student mobility remains concentrated in popular destinations, although countries and institutions are competing to attract students through specialized programs, English-taught degrees, and employment opportunities. "}, {"text": "Affordability and post-graduation work opportunities will become more influential in students' choice of study-abroad destinations over the next decade,", "confidence": 86}, {"text": " particularly as governments adjust visa and immigration policies."}], [{"text": "Looking ahead, the future of studying abroad will likely involve a broader mix of physical travel, online international collaboration, and hybrid learning, potentially making global education more accessible to students who cannot afford a full semester overseas. "}, {"text": " Hybrid study-abroad programs combining online coursework with shorter periods of in-person international study will become a mainstream option by 2030.", "confidence": 68}, {"text": " Nevertheless, digital alternatives may not fully reproduce the language immersion and everyday cultural interactions that come from living in another country. "}, {"text": "Artificial intelligence and virtual reality will substantially reshape how students prepare for and participate in international learning experiences by 2030.", "confidence": 53}], [{"text": "Overall, studying abroad is likely to remain valuable, but its future impact will depend on educational quality, affordability, equitable access, and institutions\u2019 ability to create meaningful learning experiences across borders."}]], "assistant_outro": ""}, "mode": "text", "speed": 30, "stream": true, "hint": false, "autoplay": false};
+
+// Confidence range (percent) the face spans: FACE_MIN gets the most unsure face,
+// FACE_MAX the most confident. Values below FACE_MIN look the same as FACE_MIN.
+const FACE_MIN = 50;
+const FACE_MAX = 100;
+
+// Confidence buckets (percent) for the face's idle animation.
+const BUCKET_LOW = 70;   // below this: unsure (wobble, side-glance, sweat)
+const BUCKET_HIGH = 85;  // above this: confident (nod); in between: hedging (tilt)
+
+const TYPING_MS = 1200;  // "typing..." indicator before the reply
+const PAUSE_MS = 350;    // pause between paragraphs
+const MORPH_MS = 400;    // face entrance morph
+
+const chat = document.getElementById('chat');
+const pop = document.getElementById('pop');
+const face = pop.querySelector('svg');
+const popLabel = pop.querySelector('.pop-label');
+const popClaim = pop.querySelector('.pop-claim');
+face.toggleAttribute('hidden', CONFIG.mode !== 'animated');
+popLabel.toggleAttribute('hidden', CONFIG.mode !== 'text');
+
+const wait = ms => CONFIG.stream ? new Promise(r => setTimeout(r, ms)) : Promise.resolve();
+const lerp = (a, b, t) => a + (b - a) * t;
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text) node.textContent = text;
+  return node;
+}
+
+function scrollDown() {
+  window.scrollTo(0, document.documentElement.scrollHeight);
+}
+
+// node: an element or a text node; text is appended to it.
+async function typeInto(node, text) {
+  const add = part => {
+    if (node.nodeType === Node.TEXT_NODE) node.data += part; else node.textContent += part;
+  };
+  if (!CONFIG.stream) { add(text); return; }
+  for (const part of text.split(/(\s+)/)) {
+    add(part);
+    if (part.trim()) {
+      scrollDown();
+      await wait(CONFIG.speed);
+    }
+  }
+}
+
+// ---------- Confidence popover ----------
+
+// c in [0, 1]: 0 = no confidence, 1 = full confidence.
+function faceParams(c) {
+  return {
+    mouthCtrlY: lerp(54, 86, c),  // quadratic control point; 70 = flat line
+    mouthHalfW: lerp(12, 17, c),
+    browInnerY: lerp(24, 30, c),  // inner ends raised when worried
+    browOuterY: lerp(33, 29, c),
+    eyeRy: lerp(6.5, 4.5, c),     // wide-eyed when unsure, relaxed when sure
+  };
+}
+
+function applyFace(p) {
+  const w = p.mouthHalfW;
+  face.querySelector('.mouth').setAttribute('d',
+    'M ' + (50 - w) + ' 70 Q 50 ' + p.mouthCtrlY + ' ' + (50 + w) + ' 70');
+  face.querySelector('.brow-l').setAttribute('d',
+    'M 27 ' + p.browOuterY + ' L 42 ' + p.browInnerY);
+  face.querySelector('.brow-r').setAttribute('d',
+    'M 58 ' + p.browInnerY + ' L 73 ' + p.browOuterY);
+  face.querySelectorAll('.eye').forEach(e => e.setAttribute('ry', p.eyeRy));
+}
+
+let raf = null;
+function morphTo(c) {
+  cancelAnimationFrame(raf);
+  const start = performance.now();
+  const step = now => {
+    const t = Math.min(1, (now - start) / MORPH_MS);
+    const eased = 1 - Math.pow(1 - t, 3);
+    applyFace(faceParams(lerp(0.5, c, eased)));
+    if (t < 1) raf = requestAnimationFrame(step);
+  };
+  raf = requestAnimationFrame(step);
+}
+
+function bucketClass(confidence) {
+  if (confidence < BUCKET_LOW) return 'idle-low';
+  if (confidence > BUCKET_HIGH) return 'idle-high';
+  return 'idle-mid';
+}
+
+function positionPop(anchor) {
+  const r = anchor.getClientRects()[0] || anchor.getBoundingClientRect();
+  const w = pop.offsetWidth || 96;
+  const h = pop.offsetHeight || 96;
+  const gap = 8;
+  let top = r.top - h - gap;
+  if (top < gap) top = r.bottom + gap;
+  const left = Math.max(gap, Math.min(r.left, window.innerWidth - w - gap));
+  pop.style.top = top + 'px';
+  pop.style.left = left + 'px';
+}
+
+let activeClaim = null;
+
+// text: the full claim, so the popup is complete even if hovered mid-stream.
+// num: the claim's position in the reply, counting from 1.
+function showPop(span, confidence, text, num) {
+  if (activeClaim) activeClaim.classList.remove('active');
+  activeClaim = span;
+  span.classList.add('active');
+  popClaim.replaceChildren(el('strong', '', 'Claim ' + num + ': '), text.trim());
+  if (CONFIG.mode === 'text') popLabel.textContent = Math.round(confidence) + '%';
+  positionPop(span);
+  pop.classList.remove('show', 'idle-low', 'idle-mid', 'idle-high');
+  void pop.offsetWidth;  // restart CSS animations on every hover
+  if (CONFIG.mode === 'animated') {
+    pop.classList.add('show', bucketClass(confidence));
+    morphTo(Math.min(1, Math.max(0, (confidence - FACE_MIN) / (FACE_MAX - FACE_MIN))));
+  } else {
+    pop.classList.add('show');
+  }
+}
+
+function hidePop() {
+  if (activeClaim) activeClaim.classList.remove('active');
+  activeClaim = null;
+  pop.classList.remove('show');
+}
+
+function attachPop(span, confidence, text, num) {
+  const show = () => showPop(span, confidence, text, num);
+  span.tabIndex = 0;
+  span.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') show(); });
+  span.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') hidePop(); });
+  span.addEventListener('pointerup', e => {
+    if (e.pointerType === 'mouse') return;
+    if (activeClaim === span) hidePop(); else show();
+  });
+  span.addEventListener('focus', show);
+  span.addEventListener('blur', () => { if (activeClaim === span) hidePop(); });
+}
+
+document.addEventListener('pointerdown', e => {
+  if (activeClaim && !activeClaim.contains(e.target)) hidePop();
+});
+window.addEventListener('scroll', () => { if (activeClaim) positionPop(activeClaim); }, { passive: true });
+window.addEventListener('resize', () => { if (activeClaim) positionPop(activeClaim); });
+
+// ---------- Replay ----------
+
+async function play() {
+  const d = CONFIG.data;
+
+  if (CONFIG.hint) {
+    chat.append(el('div', 'hint', CONFIG.mode === 'none'
+      ? 'Hover over underlined sentences to see them in a popup.'
+      : 'Hover over underlined sentences to see how confident the AI is.'));
+  }
+
+  const userRow = el('div', 'row user');
+  userRow.append(el('div', 'bubble-user', d.user_prompt));
+  chat.append(userRow);
+  await wait(600);
+
+  const row = el('div', 'row assistant');
+  const body = el('div', 'assistant-body');
+  row.append(el('div', 'avatar', 'AI'), body);
+  chat.append(row);
+
+  if (CONFIG.stream) {
+    const dots = el('div', 'typing');
+    dots.append(el('span'), el('span'), el('span'));
+    body.append(dots);
+    scrollDown();
+    await wait(TYPING_MS);
+    dots.remove();
+  }
+
+  if (d.assistant_intro) {
+    const p = el('p');
+    body.append(p);
+    await typeInto(p, d.assistant_intro);
+    await wait(PAUSE_MS);
+  }
+
+  let claimNum = 0;
+  for (const segments of d.paragraphs) {
+    const p = el('p');
+    body.append(p);
+    for (const seg of segments) {
+      if (seg.confidence != null || seg.claim) {
+        const span = el('span', 'claim claim-hover');
+        attachPop(span, seg.confidence, seg.text, ++claimNum);
+        p.append(span);
+        await typeInto(span, seg.text);
+      } else {
+        const node = document.createTextNode('');
+        p.append(node);
+        await typeInto(node, seg.text);
+      }
+    }
+    await wait(PAUSE_MS);
+  }
+
+  if (d.assistant_outro) {
+    const p = el('p');
+    body.append(p);
+    await typeInto(p, d.assistant_outro);
+  }
+
+  document.body.classList.add('replay-done');
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'replay_done', id: d.id, mode: CONFIG.mode }, '*');
+  }
+}
+
+if (CONFIG.autoplay) {
+  play();
+} else {
+  const overlay = el('div', 'start-overlay');
+  const btn = el('button', '', 'Start');
+  btn.addEventListener('click', () => { overlay.remove(); play(); });
+  overlay.append(btn);
+  document.body.append(overlay);
+}
+</script>
+</body>
+</html>
