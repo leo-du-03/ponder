@@ -87,3 +87,6 @@ Constants at the top of the `<script>` in [templates/chat.html](templates/chat.h
   paragraphs, and the face's entrance morph.
 
 The page uses a fixed light theme so that every participant sees the same visuals.
+
+## AI Usage Disclosure
+Claude Opus 5.5 was used to assist in the writing and debugging of this code.
